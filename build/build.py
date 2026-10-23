@@ -43,7 +43,7 @@ import urllib.request
 from datetime import datetime, timezone, timedelta
 
 SPREADSHEET_ID = "11KBE_QkY5hcpbrJTM1IpoAdrS9pN2jhl8KE7llvTkpE"
-GID_CONVERSAS = "1412399463"   # aba Leads = fonte principal de leads
+GID_CONVERSAS = "316997495"   # aba "Lista Leads" (42 leads reais) = fonte principal de leads
 GID_LEADS = ""   # sem aba legado neste cliente
 GID_META = "0"
 GID_SALES = ""   # Compradores: aguardando a planilha (vazio = sem vendas)
@@ -68,7 +68,8 @@ TAX_FACTOR = 1.13806   # fator padrão de imposto/taxa sobre o gasto de mídia p
 # ele entra como "Em observação" (dado insuficiente) — nunca é classificado só
 # porque teve 1 resultado com pouco investimento. Ajuste conforme o ticket/CAC.
 SAMPLE_MIN_SPEND = 100.0   # gasto mínimo (R$) para amostra relevante
-SAMPLE_MIN_MQLS = 3        # MQLs mínimos para julgar qualidade profunda
+SAMPLE_MIN_MQLS = 3        # MQLs mínimos (só pipeline de Insights em Python; o dashboard não usa MQL)
+SAMPLE_MIN_LEADS = 5       # leads mínimos por anúncio p/ julgá-lo no dashboard (senão "Em observação")
 TOP_ADS_N = 10             # nº de linhas em Top / Piores anúncios
 
 # Metas & parâmetros da conta (DEFAULTS do painel editável da aba Relatório).
@@ -77,6 +78,7 @@ TOP_ADS_N = 10             # nº de linhas em Top / Piores anúncios
 # amostra ao vivo. None = "meta não definida" (métrica aparece sem cor até o
 # gestor preencher).
 META_CPMQL = None          # meta de CPMQL (R$/MQL); None = não definida
+META_CPL = None            # meta de CPL (R$/lead); None = não definida
 META_CAC = None            # meta de CAC (R$/venda); None = não definida
 VOLUME_MIN_AMOSTRAL = SAMPLE_MIN_MQLS  # conversões (MQLs) mínimas p/ amostra confiável
 N_DIAS_CORTE = 5           # dias consecutivos acima do teto p/ considerar corte
@@ -328,7 +330,7 @@ def process(conversas_rows, meta_rows, sales_rows, leads_lp_rows):
          "name": ["nome", "name"],
          "medico": ["mql", "qualificado", "paywall"],
          "campaign": ["campanha", "campaign", "utm_campaign"],
-         "adset": ["conjunto", "adset", "utm_medium"], "ad": ["anuncio", "ad name", "utm_content"],
+         "adset": ["conjunto", "adset", "utm_medium", "medium"], "ad": ["anuncio", "ad name", "utm_content", "content"],
          "specialty": ["cargo", "especialidades", "especialidade", "tipo de vaga", "vaga"]},
         {"created": 0},
     )
@@ -348,6 +350,9 @@ def process(conversas_rows, meta_rows, sales_rows, leads_lp_rows):
     phone_attrib: dict[str, dict] = {}
     for row in rows_sorted:
         if is_test_lead(" ".join(str(c) for c in row)):
+            continue
+        # linha sem data não é lead (ex.: células soltas como "Não Encontrado" abaixo da lista)
+        if not parse_date(cell(row, cidx["created"])):
             continue
         campaign_raw = cell(row, cidx["campaign"])
         campaign_valid = valid_utm(campaign_raw)
@@ -470,9 +475,11 @@ def process(conversas_rows, meta_rows, sales_rows, leads_lp_rows):
             # config da aba Relatório (lida pelo front)
             "sample_min_spend": SAMPLE_MIN_SPEND,
             "sample_min_mqls": SAMPLE_MIN_MQLS,
+            "sample_min_leads": SAMPLE_MIN_LEADS,
             "top_ads_n": TOP_ADS_N,
             # metas & parâmetros (defaults do painel editável; None = não definida)
             "meta_cpmql": META_CPMQL,
+            "meta_cpl": META_CPL,
             "meta_cac": META_CAC,
             "volume_min_amostral": VOLUME_MIN_AMOSTRAL,
             "n_dias_corte": N_DIAS_CORTE,
@@ -563,12 +570,11 @@ def main():
         f.write(render(data, args.template))
 
     b = data["build"]
-    q = sum(l["q"] for l in data["leads"])
     vd = sum(s["vendas"] for s in data["sales"])
     fat = sum(s["fat"] for s in data["sales"])
     print("== build ok ==", file=sys.stderr)
     print(f"  periodo   : {b['date_min']} -> {b['date_max']}", file=sys.stderr)
-    print(f"  leads MSG : {len(data['leads'])}  MQLs (qualificados): {q}", file=sys.stderr)
+    print(f"  leads: {len(data['leads'])}", file=sys.stderr)
     print(f"  vendas    : {vd}  faturamento: R$ {fat:,.2f}", file=sys.stderr)
     print(f"  leads LP  : {b['leads_lp_total']} (fonte antiga, não usada na UI)", file=sys.stderr)
     print(f"  meta      : {len(data['meta'])} linhas", file=sys.stderr)

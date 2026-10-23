@@ -78,18 +78,19 @@ Spreadsheet ID: `11KBE_QkY5hcpbrJTM1IpoAdrS9pN2jhl8KE7llvTkpE` ("Secre App - Pub
 
 | Aba | gid | Colunas usadas |
 |-----|-----|----------------|
-| **Conversas** (fonte principal — webhook de mensageria/WhatsApp) | `1412399463` | `Data` · `Mensagem` · `Nome` · `Telefone` · coluna de MQL · `Campanha` · `Conjunto` · `Anúncio` · `Especialidades` |
+| **Lista Leads** (fonte principal — 1 linha por lead; `GID_CONVERSAS` no código) | `316997495` | `Data` · `Nome` · `Email` · `Telefone` · `Source` · `Campaign` · `Medium` (conjunto) · `Term` · `Content` (anúncio). Linhas sem data são ignoradas |
 | **Leads** (legado — popup/form antigo, só contada) | `— (inexistente)` | `Data` · `Nome` · `Email` · `Telefone` · coluna de MQL · `Especialidade` · `utm_*` · `MQL` · `Compra Detectada`/`Faturamento Detectado`/`Data Compra` |
 | **Meta Ads** | `0` | `Day` · `Ad ID` · `Campaign Name` · `Ad Set Name` · `Ad Name` · `Amount Spent` · `Impressions` · `Link Clicks` · `Landing Page Views` · `Content Views` · `Adds to Cart` · `Subscriptions` · `Subscribe Conversion Value` |
 | **New Subscriptions** (Compradores) | `— (aguardando)` | `Data` · `Nome` · `Email` · `Telefone` · `Produto` · `Oferta` · `Faturamento` · `Receita` · `Método de Pagamento` · `Campanha` · `Conjunto` · `Anúncio` · `UF` · `Cidade` · `Zip Code` · `Endereço` |
 
 URL de export CSV: `https://docs.google.com/spreadsheets/d/<ID>/export?format=csv&gid=<GID>`
 
-### Regra de Lead Qualificado (MQL)
-Coluna de qualificação (aliases `mql`/`qualificado`/`paywall`) == "Sim" — sem a coluna, todo lead é MQL.
-Lógica em `build.py` → `is_medico`. O gráfico "Leads por especialidade" (`app.js`,
-`renderGeralCore`) colore verde/cinza pelo mesmo critério, usando a coluna
-`Especialidades`/`Especialidade` como dimensão.
+### Sem MQL (funil Leads → Vendas)
+O dashboard **não exibe MQL**: o funil vai de Leads direto para Vendas, e as tabelas
+usam **CPL** / **ConvLead** (vendas ÷ leads) no lugar de CPMQL/ConvMQL; metas do painel
+da aba Relatório = Meta CPL / Meta CAC / amostra mínima em **leads** (`SAMPLE_MIN_LEADS`).
+`build.py` ainda emite `q` por lead e o pipeline de Insights em Python
+(`relatorio_lib.py` etc.) ainda calcula MQL — não é exibido no site.
 
 ### Vendas & Faturamento (cruzamento com Compradores)
 `build.py` → `build_sales_index()` lê a aba **New Subscriptions** e indexa por
