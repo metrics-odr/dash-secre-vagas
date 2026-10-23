@@ -5,7 +5,7 @@
 > convenção `AGENTS.md`.
 >
 > **Este é um TEMPLATE limpo.** Todos os valores do cliente estão como
-> `<<PREENCHER: descrição>>`.
+> `«preencher»`.
 
 ## ✅ CHECKLIST DE NOVO CLIENTE (fazer em ordem)
 
@@ -46,10 +46,15 @@ coleta/redação dos Insights. Ver `GUIA-REPLICACAO.md` para os detalhes de
 implementação (filtro cruzado, engine de tabela, gráficos Chart.js).
 
 > `template.html` e `app.js` são engine, mas carregam o nome do cliente em pontos
-> pontuais (título/logo e um comentário) — já marcados como `<<PREENCHER>>`.
+> pontuais (título/logo e um comentário) — já preenchidos.
 
 ## Específico do cliente (troca a cada replicação)
 `build/build.py`, `build/identidade-visual.css` (cores, se aplicável),
 `build/relatorios.json` + `build/relatorios_dados.json` (conteúdo — começam vazios),
 `build/GUIA-RELATORIOS.md` (contexto do funil), `README.md`, `CLAUDE.md`,
 `SETUP-CRON.md`.
+
+## Regra de publicação ("Publicar")
+Ao concluir qualquer alteração: abrir PR da branch de trabalho para a `main` e
+mesclar imediatamente; informar status do Actions e a URL pública. Atalho manual:
+Actions → **Publicar** → *Run workflow*.

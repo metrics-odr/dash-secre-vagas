@@ -1,0 +1,28 @@
+name: Publicar
+
+# Botão "Publicar": abre um PR da branch escolhida para a main e já mescla.
+# O merge na main dispara o deploy.yml (build + GitHub Pages).
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Branch a publicar"
+        required: true
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Abrir PR e mesclar
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          BRANCH: ${{ inputs.branch }}
+        run: |
+          gh pr create --repo "$REPO" --base main --head "$BRANCH" \
+            --title "Publicar: $BRANCH" --body "Publicação automática" || true
+          gh pr merge "$BRANCH" --repo "$REPO" --merge
