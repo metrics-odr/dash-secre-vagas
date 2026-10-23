@@ -73,21 +73,18 @@ os Insights.
 
 ## Contexto do funil
 
-**Funil de High Ticket (<<PREENCHER: nome do cliente>>)** — <<PREENCHER: descrição
-curta do cliente/oferta>>. Funil de captura via WhatsApp com venda 1:1 (comercial
-fecha por conversa/reunião, não carrinho direto): o anúncio no Meta Ads leva
-a uma página de captura com botão do WhatsApp; ao clicar, o lead chama no
-WhatsApp Business do cliente e o webhook de mensageria dispara na 1ª mensagem,
-que cai na aba **Conversas** (fonte principal de leads deste dashboard). O
-critério de qualificação (MQL) é <<PREENCHER: critério de MQL do cliente, ex.
-"o lead ser médico">> — se qualificado, segue a conversa com o comercial até a
-venda (registrada na aba de Compradores e cruzada de volta ao anúncio por telefone).
+**Funil Publicar Vaga (Secre App)** — venda de assinatura do app Secre. O anúncio no Meta Ads leva
+à página de **publicar vaga**: o lead preenche os **dados da vaga** e os **dados do lead**, vê o
+**paywall** e então a **compra** (assinatura). Os cadastros caem na aba **Leads** (fonte principal
+deste dashboard). O critério de qualificação (MQL) é a coluna de qualificação == "Sim" (ex.
+chegou ao paywall); enquanto a coluna não existir, todo lead conta como MQL. As compras virão da
+aba de Compradores (aguardando) e serão cruzadas de volta ao anúncio por telefone.
 
 ```
 Impressões → Cliques/abertura do WhatsApp → Leads → MQLs → Vendas → Faturamento
 ```
 
-- **MQL** = coluna de qualificação (<<PREENCHER: nome da coluna de MQL>>) == "Sim" (ver `build.py` → `is_medico`).
+- **MQL** = coluna de qualificação == "Sim" (ver `build.py` → `is_medico`).
 - **Agendamento** = o lead qualificado marcou horário de reunião com o comercial.
 - **Reunião Realizada** = a reunião de fato aconteceu (o lead compareceu). O
   inverso disso é o **No‑Show** (agendou e não compareceu) — a métrica de alerta

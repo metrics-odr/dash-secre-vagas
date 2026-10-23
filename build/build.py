@@ -2,20 +2,19 @@
 # -*- coding: utf-8 -*-
 """
 Gera a dashboard estatica (index.html) a partir de 4 abas da planilha central
-<<PREENCHER: nome da planilha central do cliente>>:
+Secre App - Publicar Vaga:
 
-  - "Conversas" (gid <<PREENCHER: GID_CONVERSAS>>): fonte PRINCIPAL de leads — webhook
-    de mensageria disparado na 1a mensagem recebida no WhatsApp Business. Usada em
-    TODOS os graficos/cards/tabelas/calculos de conversao.
-  - "Leads" (gid <<PREENCHER: GID_LEADS>>): fonte ANTIGA (popup/form legado). So e
-    contada (total), nunca entra em grafico/card/tabela/conversao.
-  - "Meta Ads" (gid <<PREENCHER: GID_META>>): investimento/impressoes/cliques do gerenciador.
-  - "New Subscriptions" / Compradores (gid <<PREENCHER: GID_SALES>>): usada para cruzar por
+  - "Leads" (gid 1412399463): fonte PRINCIPAL de leads do funil Publicar Vaga
+    (cadastro de dados da vaga/lead no app). Usada em TODOS os graficos/cards/
+    tabelas/calculos de conversao (no codigo a variavel se chama GID_CONVERSAS).
+  - Leads legado (GID_LEADS): nao existe neste cliente (gid vazio = aba ignorada).
+  - "Meta Ads" (gid 0): investimento/impressoes/cliques do gerenciador.
+  - "New Subscriptions" / Compradores (GID_SALES, ainda vazio — aguardando): usada para cruzar por
     TELEFONE com a Conversas e atribuir Venda/Faturamento ao anuncio de origem.
 
 Criterio de Lead Qualificado (MQL): coluna de qualificacao do cliente
-(<<PREENCHER: nome da coluna de MQL, ex. "E medico?">>) == "Sim". Ajuste is_medico()
-e os aliases de coluna em process() para o criterio deste cliente.
+(aliases "mql", "qualificado", "chegou paywall"...) == "Sim". Se a aba nao tiver
+essa coluna, TODO lead conta como MQL ate o criterio ser definido.
 
 Este script apenas LE as planilhas (export CSV publico) e emite os REGISTROS
 BRUTOS (leads[], meta[] e sales[]) dentro do HTML. sales[] tem um registro POR
@@ -43,19 +42,19 @@ import urllib.error
 import urllib.request
 from datetime import datetime, timezone, timedelta
 
-SPREADSHEET_ID = "<<PREENCHER: ID da planilha central (Google Sheets) do cliente>>"
-GID_CONVERSAS = "<<PREENCHER: gid da aba de Conversas / fonte principal de leads>>"
-GID_LEADS = "<<PREENCHER: gid da aba de Leads legado (popup/form) — só contada>>"
-GID_META = "<<PREENCHER: gid da aba Meta Ads>>"
-GID_SALES = "<<PREENCHER: gid da aba de Compradores (New Subscriptions) — cruzada por telefone>>"
+SPREADSHEET_ID = "11KBE_QkY5hcpbrJTM1IpoAdrS9pN2jhl8KE7llvTkpE"
+GID_CONVERSAS = "1412399463"   # aba Leads = fonte principal de leads
+GID_LEADS = ""   # sem aba legado neste cliente
+GID_META = "0"
+GID_SALES = ""   # Compradores: aguardando a planilha (vazio = sem vendas)
 EXPORT_URL = "https://docs.google.com/spreadsheets/d/{sid}/export?format=csv&gid={gid}"
 
 # Identificação do cliente/conta (usada só em textos/relatórios — não afeta o cruzamento de dados).
-CLIENT_NAME = "<<PREENCHER: nome do cliente>>"
-MAIN_PRODUCT = "<<PREENCHER: nome do produto/oferta principal>>"
+CLIENT_NAME = "Secre App"
+MAIN_PRODUCT = "Publicar Vaga"
 # Prefixo comum a TODAS as campanhas da conta (usado para agrupar campanhas no
 # dashboard). Ajuste ao padrão de nomenclatura de campanha deste cliente.
-MAIN_PRODUCT_PREFIX = "<<PREENCHER: prefixo das campanhas do cliente, ex. NOMECLIENTE>>"
+MAIN_PRODUCT_PREFIX = "Secre"
 
 BRT = timezone(timedelta(hours=-3))   # horario de Brasilia (exibicao)
 TAX_FACTOR = 1.13806   # fator padrão de imposto/taxa sobre o gasto de mídia paga (Meta Ads) = 13,806%.
@@ -113,6 +112,8 @@ def read_csv_file(path: str) -> list[list[str]]:
 
 
 def load_rows(url: str, local: str | None) -> list[list[str]]:
+    if not local and url.endswith("gid="):   # gid vazio = aba inexistente neste cliente
+        return []
     return read_csv_file(local) if local else fetch_csv(url)
 
 
@@ -166,11 +167,10 @@ def is_test_lead(rowtext: str) -> bool:
     return "<test lead" in rowtext.lower()
 
 
-# <<PREENCHER: critério de MQL deste cliente>> — implementação de referência abaixo
-# usa uma coluna booleana "Sim/Não". Renomeie a função e ajuste conforme o critério
-# de qualificação do cliente (o exemplo abaixo qualifica pela coluna de MQL == "Sim").
+# Critério de MQL do Secre App: coluna de qualificação == "Sim". Se a aba não tiver
+# essa coluna, todo lead vale como MQL (ver process()). Nome mantido por compatibilidade.
 def is_medico(v: str | None) -> bool:
-    """Critério de MQL: coluna de qualificação (<<PREENCHER: nome da coluna>>) == "Sim"."""
+    """Critério de MQL: coluna de qualificação == "Sim"."""
     return norm(v) in ("sim", "s", "yes", "true", "1")
 
 
@@ -320,14 +320,17 @@ def process(conversas_rows, meta_rows, sales_rows, leads_lp_rows):
     sales_index = build_sales_index(sales_rows)
 
     cheader = conversas_rows[0] if conversas_rows else []
-    # <<PREENCHER: aliases da coluna de MQL do cliente>> — "medico" abaixo é o exemplo
-    # (ajuste os aliases e o índice de fallback ao cabeçalho da aba Conversas do cliente).
+    # Aba Leads do Secre App: colunas localizadas pelo cabeçalho (aliases); sem
+    # fallback posicional. "medico" = coluna de qualificação (MQL), se existir.
     cidx = header_index(
         cheader,
-        {"created": ["data"], "phone": ["telefone"], "name": ["nome"],
-         "medico": ["e medico", "medico"], "campaign": ["campanha"],
-         "adset": ["conjunto"], "ad": ["anuncio"], "specialty": ["especialidades", "especialidade"]},
-        {"created": 0, "phone": 3, "name": 2, "medico": 4, "campaign": 8, "adset": 9, "ad": 10, "specialty": 11},
+        {"created": ["data", "date", "created"], "phone": ["telefone", "whatsapp", "phone"],
+         "name": ["nome", "name"],
+         "medico": ["mql", "qualificado", "paywall"],
+         "campaign": ["campanha", "campaign", "utm_campaign"],
+         "adset": ["conjunto", "adset", "utm_medium"], "ad": ["anuncio", "ad name", "utm_content"],
+         "specialty": ["cargo", "especialidades", "especialidade", "tipo de vaga", "vaga"]},
+        {"created": 0},
     )
 
     leads = []
@@ -367,7 +370,7 @@ def process(conversas_rows, meta_rows, sales_rows, leads_lp_rows):
             "ad": ad,
             "prof": specialty,
             "bucket": specialty,
-            "q": 1 if is_medico(cell(row, cidx["medico"])) else 0,
+            "q": (1 if is_medico(cell(row, cidx["medico"])) else 0) if cidx["medico"] is not None else 1,
             "utm": 1 if campaign_valid else 0,
             "nm": first_last_initial(cell(row, cidx["name"])),
             "em": "—",
