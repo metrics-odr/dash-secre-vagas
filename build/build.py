@@ -9,7 +9,7 @@ Secre App - Publicar Vaga:
     tabelas/calculos de conversao (no codigo a variavel se chama GID_CONVERSAS).
   - Leads legado (GID_LEADS): nao existe neste cliente (gid vazio = aba ignorada).
   - "Meta Ads" (gid 0): investimento/impressoes/cliques do gerenciador.
-  - "New Subscriptions" / Compradores (GID_SALES, ainda vazio — aguardando): usada para cruzar por
+  - "New Subscriptions" / Compradores (GID_SALES = 470457833, aba "Vendas"; cruza por e-mail): usada para cruzar por
     TELEFONE com a Conversas e atribuir Venda/Faturamento ao anuncio de origem.
 
 Criterio de Lead Qualificado (MQL): coluna de qualificacao do cliente
@@ -46,7 +46,7 @@ SPREADSHEET_ID = "11KBE_QkY5hcpbrJTM1IpoAdrS9pN2jhl8KE7llvTkpE"
 GID_CONVERSAS = "316997495"   # aba "Lista Leads" (42 leads reais) = fonte principal de leads
 GID_LEADS = ""   # sem aba legado neste cliente
 GID_META = "0"
-GID_SALES = ""   # Compradores: aguardando a planilha (vazio = sem vendas)
+GID_SALES = "470457833"   # aba "Vendas" (compradores; sem telefone — cruza por e-mail)
 EXPORT_URL = "https://docs.google.com/spreadsheets/d/{sid}/export?format=csv&gid={gid}"
 
 # Identificação do cliente/conta (usada só em textos/relatórios — não afeta o cruzamento de dados).
@@ -262,62 +262,65 @@ def cell(row, i):
 # Compradores ("New Subscriptions") -> indice por telefone
 # --------------------------------------------------------------------------- #
 def build_sales_index(sales_rows):
-    """Le a aba de Compradores e devolve {telefone_normalizado: [{"d":..,"fat":..,"receita":..,"nm":..}, ...]},
-    UMA ENTRADA POR LINHA de compra (nao agregada por telefone). Cruzamento é por
-    TELEFONE (a Conversas não tem e-mail; o Lead LP antigo tem e-mail mas está fora
-    do escopo principal deste dashboard). Mantemos cada compra separada — com sua
-    própria data — para atribuir a venda ao dia em que ela REALMENTE aconteceu,
-    em vez de empilhar todo o histórico de compras do telefone num único dia.
-    "nm" (nome, sem mascara) fica só p/ diagnóstico de telefone não casado
-    (log_unmatched_sales) — nunca é exportado em sales[]/DATA."""
+    """Le a aba de vendas e devolve uma LISTA de compras (uma por linha, nunca
+    agregada): [{"d","fat","receita","phone","email","nm"}, ...].
+    Colunas por cabeçalho: Data · Nome · Email · Telefone (opcional) · Preço
+    (ou Faturamento/Receita). Sem coluna de receita separada, Preço vale p/
+    faturamento E receita. Linhas repetidas (mesmo Invoice_id/Event_id) contam
+    uma vez. O cruzamento com os leads é por TELEFONE (canon_phone) quando
+    houver, senão por E-MAIL. "nm" só serve ao log de não casados."""
     header = sales_rows[0] if sales_rows else []
     idx = header_index(
         header,
-        {"phone": ["telefone"], "date": ["data"], "faturamento": ["faturamento"], "receita": ["receita"],
-         "name": ["nome"]},
-        {"phone": 3, "date": 0, "faturamento": 6, "receita": 7, "name": 1},
+        {"phone": ["telefone", "whatsapp"], "email": ["email", "e-mail"], "date": ["data"],
+         "price": ["preco", "valor"], "faturamento": ["faturamento"], "receita": ["receita"],
+         "name": ["nome"], "inv": ["invoice_id", "invoice"], "ev": ["event_id"]},
+        {"date": 0, "name": 1, "email": 2},
     )
-    out: dict[str, list] = {}
+    out: list[dict] = []
+    seen: set[str] = set()
     for row in sales_rows[1:]:
         if not any((c or "").strip() for c in row):
             continue
+        uid = cell(row, idx["inv"]) or cell(row, idx["ev"])
+        if uid:
+            if uid in seen:
+                continue
+            seen.add(uid)
         phone = norm_phone(cell(row, idx["phone"]))
-        if not phone:
+        email = cell(row, idx["email"]).lower()
+        if not phone and not email:
             continue
-        out.setdefault(phone, []).append({
-            "d": parse_date(cell(row, idx["date"])),
-            "fat": to_float(cell(row, idx["faturamento"])),
-            "receita": to_float(cell(row, idx["receita"])),
-            "nm": cell(row, idx["name"]),
-        })
+        price = to_float(cell(row, idx["price"]))
+        fat = to_float(cell(row, idx["faturamento"])) or price
+        rec = to_float(cell(row, idx["receita"])) or price
+        out.append({"d": parse_date(cell(row, idx["date"])), "fat": fat, "receita": rec,
+                    "phone": phone, "email": email, "nm": cell(row, idx["name"])})
     return out
 
 
-def log_unmatched_sales(sales_index, phone_attrib):
-    """Diagnóstico (stderr, não afeta a saída): compras da aba Compradores cujo
-    telefone não bate com NENHUMA conversa da aba Conversas MESMO após a
-    canonicalização (canon_phone, que já cobre DDI "55" e o 9º dígito do
-    celular). Essas vendas AGORA entram na dash mesmo assim (contam nos totais /
-    Visão Geral), só ficam SEM atribuição de anúncio ("(sem campanha)") — este
-    log serve pra dimensionar quanta receita fica sem origem e conferir se é
-    compra por outro canal (esperado) ou algum telefone ainda divergente."""
-    matched = sum(1 for phone in sales_index if canon_phone(phone) in phone_attrib)
-    unmatched = [(phone, p) for phone, purchases in sales_index.items()
-                 if canon_phone(phone) not in phone_attrib for p in purchases]
-    print(f"  vendas atribuídas a anúncio: {matched}/{len(sales_index)} telefones "
-          f"(cruzamento canônico Compradores × Conversas)", file=sys.stderr)
-    if not unmatched:
-        return
-    print(f"  {len(unmatched)} compra(s) SEM anúncio de origem (entram nos totais como \"(sem campanha)\"):",
-          file=sys.stderr)
-    for phone, p in unmatched:
-        print(f"    - {p['d'] or '?'}  {first_last_initial(p['nm'])}  tel …{phone[-4:] if len(phone) >= 4 else phone}",
+def sale_attrib(p, phone_attrib, email_attrib):
+    """Atribuição (camp/adset/ad) de uma compra: telefone canônico, senão e-mail."""
+    if p["phone"]:
+        a = phone_attrib.get(canon_phone(p["phone"]))
+        if a:
+            return a
+    return email_attrib.get(p["email"]) if p["email"] else None
+
+
+def log_unmatched_sales(purchases, phone_attrib, email_attrib):
+    """Diagnóstico (stderr): compras sem conversa/lead correspondente. Elas
+    ainda entram nos totais, como "(sem campanha)"."""
+    unmatched = [p for p in purchases if not sale_attrib(p, phone_attrib, email_attrib)]
+    print(f"  vendas atribuídas a anúncio: {len(purchases) - len(unmatched)}/{len(purchases)} compras "
+          f"(cruzamento por telefone/e-mail)", file=sys.stderr)
+    if unmatched:
+        print(f"  {len(unmatched)} compra(s) SEM anúncio de origem (entram nos totais como \"(sem campanha)\"):",
               file=sys.stderr)
+        for p in unmatched:
+            print(f"    - {p['d'] or '?'}  {first_last_initial(p['nm'])}", file=sys.stderr)
 
 
-# --------------------------------------------------------------------------- #
-# Processamento -> registros brutos
-# --------------------------------------------------------------------------- #
 def process(conversas_rows, meta_rows, sales_rows, leads_lp_rows):
     sales_index = build_sales_index(sales_rows)
 
@@ -326,7 +329,7 @@ def process(conversas_rows, meta_rows, sales_rows, leads_lp_rows):
     # fallback posicional. "medico" = coluna de qualificação (MQL), se existir.
     cidx = header_index(
         cheader,
-        {"created": ["data", "date", "created"], "phone": ["telefone", "whatsapp", "phone"],
+        {"created": ["data", "date", "created"], "phone": ["telefone", "whatsapp", "phone"], "email": ["email", "e-mail"],
          "name": ["nome", "name"],
          "medico": ["mql", "qualificado", "paywall"],
          "campaign": ["campanha", "campaign", "utm_campaign"],
@@ -348,6 +351,7 @@ def process(conversas_rows, meta_rows, sales_rows, leads_lp_rows):
     )
     attributed_phones: set[str] = set()
     phone_attrib: dict[str, dict] = {}
+    email_attrib: dict[str, dict] = {}
     for row in rows_sorted:
         if is_test_lead(" ".join(str(c) for c in row)):
             continue
@@ -365,6 +369,9 @@ def process(conversas_rows, meta_rows, sales_rows, leads_lp_rows):
         if phone and phone not in attributed_phones:
             attributed_phones.add(phone)
             phone_attrib[phone] = {"src": src, "camp": camp, "adset": adset, "ad": ad, "d": conversa_date}
+        email = cell(row, cidx["email"]).lower()
+        if email and email not in email_attrib:
+            email_attrib[email] = {"src": src, "camp": camp, "adset": adset, "ad": ad, "d": conversa_date}
         specialty = pretty_specialty(cell(row, cidx["specialty"]))
         leads.append({
             "d": parse_date(cell(row, cidx["created"])),
@@ -394,21 +401,20 @@ def process(conversas_rows, meta_rows, sales_rows, leads_lp_rows):
     sales = []
     NO_ATTRIB = {"src": "org", "camp": "(sem campanha)", "adset": "(sem conjunto)",
                  "ad": "(sem anúncio)", "d": None}
-    for phone, purchases in sales_index.items():
-        attrib = phone_attrib.get(canon_phone(phone)) or NO_ATTRIB
-        for p in purchases:
-            sales.append({
-                "d": p["d"] or attrib["d"],
-                "src": attrib["src"],
-                "camp": attrib["camp"],
-                "adset": attrib["adset"],
-                "ad": attrib["ad"],
-                "vendas": 1,
-                "fat": round(p["fat"], 2),
-                "receita": round(p["receita"], 2),
-            })
+    for p in sales_index:
+        attrib = sale_attrib(p, phone_attrib, email_attrib) or NO_ATTRIB
+        sales.append({
+            "d": p["d"] or attrib["d"],
+            "src": attrib["src"],
+            "camp": attrib["camp"],
+            "adset": attrib["adset"],
+            "ad": attrib["ad"],
+            "vendas": 1,
+            "fat": round(p["fat"], 2),
+            "receita": round(p["receita"], 2),
+        })
 
-    log_unmatched_sales(sales_index, phone_attrib)
+    log_unmatched_sales(sales_index, phone_attrib, email_attrib)
 
     mheader = meta_rows[0] if meta_rows else []
     midx = header_index(

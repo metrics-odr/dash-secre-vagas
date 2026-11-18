@@ -81,7 +81,7 @@ Spreadsheet ID: `11KBE_QkY5hcpbrJTM1IpoAdrS9pN2jhl8KE7llvTkpE` ("Secre App - Pub
 | **Lista Leads** (fonte principal — 1 linha por lead; `GID_CONVERSAS` no código) | `316997495` | `Data` · `Nome` · `Email` · `Telefone` · `Source` · `Campaign` · `Medium` (conjunto) · `Term` · `Content` (anúncio). Linhas sem data são ignoradas |
 | **Leads** (legado — popup/form antigo, só contada) | `— (inexistente)` | `Data` · `Nome` · `Email` · `Telefone` · coluna de MQL · `Especialidade` · `utm_*` · `MQL` · `Compra Detectada`/`Faturamento Detectado`/`Data Compra` |
 | **Meta Ads** | `0` | `Day` · `Ad ID` · `Campaign Name` · `Ad Set Name` · `Ad Name` · `Amount Spent` · `Impressions` · `Link Clicks` · `Landing Page Views` · `Content Views` · `Adds to Cart` · `Subscriptions` · `Subscribe Conversion Value` |
-| **New Subscriptions** (Compradores) | `— (aguardando)` | `Data` · `Nome` · `Email` · `Telefone` · `Produto` · `Oferta` · `Faturamento` · `Receita` · `Método de Pagamento` · `Campanha` · `Conjunto` · `Anúncio` · `UF` · `Cidade` · `Zip Code` · `Endereço` |
+| **Vendas** (Compradores; `GID_SALES`) | `470457833` | `DAta` · `Nome` · `Email` · `Produto` · `Oferta` · `Preço` · `Event_id` · `Sub_Id` · `Invoice_id`. **Sem telefone**: cruza com a Lista Leads por **e-mail** (telefone só como alternativa). `Preço` = faturamento = receita; linhas com mesmo Invoice_id/Event_id contam 1x |
 
 URL de export CSV: `https://docs.google.com/spreadsheets/d/<ID>/export?format=csv&gid=<GID>`
 
